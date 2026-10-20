@@ -78,7 +78,8 @@ export const make = Effect.sync(() => {
     }
     return () => {
       for (let i = 0; i < resolvedKeys.length; i++) {
-        const set = handlers.get(resolvedKeys[i])!
+        const set = handlers.get(resolvedKeys[i])
+        if (set === undefined) continue
         set.delete(handler)
         if (set.size === 0) {
           handlers.delete(resolvedKeys[i])
@@ -98,12 +99,16 @@ export const make = Effect.sync(() => {
 
       let running = false
       let pending = false
+      let done = false
       const handleExit = (exit: Exit.Exit<A, E>) => {
         if (exit._tag === "Failure") {
+          done = true
+          pending = false
+          cancel()
           results.unsafeDone(Exit.failCause(exit.cause))
-        } else {
-          results.unsafeOffer(exit.value)
+          return
         }
+        results.unsafeOffer(exit.value)
         if (pending) {
           pending = false
           runFork(effect).addObserver(handleExit)
@@ -113,6 +118,7 @@ export const make = Effect.sync(() => {
       }
 
       function run() {
+        if (done) return
         if (running) {
           pending = true
           return
